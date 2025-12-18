@@ -1,6 +1,8 @@
 import { motion } from "framer-motion";
-import { Command, Sparkles, Shield, Cpu, LogOut, User } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { Command, Sparkles, Shield, Cpu, LogOut, User, Settings } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+import { useAdmin } from "@/hooks/useAdmin";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -16,6 +18,8 @@ interface HeaderProps {
 
 export const Header = ({ onOpenOmniBar, fileCount }: HeaderProps) => {
   const { user, signOut } = useAuth();
+  const { isAdmin } = useAdmin();
+  const navigate = useNavigate();
 
   return (
     <header className="relative z-20">
@@ -103,6 +107,15 @@ export const Header = ({ onOpenOmniBar, fileCount }: HeaderProps) => {
                 </p>
               </div>
               <DropdownMenuSeparator />
+              {isAdmin && (
+                <DropdownMenuItem
+                  onClick={() => navigate('/admin')}
+                  className="cursor-pointer"
+                >
+                  <Settings className="w-4 h-4 mr-2" />
+                  Administration
+                </DropdownMenuItem>
+              )}
               <DropdownMenuItem
                 onClick={signOut}
                 className="text-destructive focus:text-destructive cursor-pointer"
