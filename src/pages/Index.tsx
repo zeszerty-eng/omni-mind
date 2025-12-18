@@ -5,15 +5,21 @@ import { OmniBar } from "@/components/OmniBar";
 import { DropZone } from "@/components/DropZone";
 import { FileCard } from "@/components/FileCard";
 import { BackgroundEffects } from "@/components/BackgroundEffects";
-import { useAIProcessor } from "@/hooks/useAIProcessor";
-import { Grid, List, Sparkles } from "lucide-react";
+import { SpatialCanvas } from "@/components/SpatialCanvas";
+import { useFileProcessor } from "@/hooks/useFileProcessor";
+import { useRelations } from "@/hooks/useRelations";
+import { Grid, List, Sparkles, Map } from "lucide-react";
 
 const Index = () => {
   const [isOmniBarOpen, setIsOmniBarOpen] = useState(false);
-  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+  const [viewMode, setViewMode] = useState<"grid" | "list" | "canvas">("grid");
   const [searchQuery, setSearchQuery] = useState("");
   
-  const { isProcessing, processedFiles, processFiles, searchFiles } = useAIProcessor();
+  const { isProcessing, processedFiles, processFiles, searchFiles } = useFileProcessor();
+  const { relations, detectSimilarities } = useRelations();
+
+  // Detect similarities between nodes
+  const detectedRelations = detectSimilarities(processedFiles.map(n => ({ id: n.id, tags: n.tags || [] })));
 
   // Keyboard shortcut for OmniBar
   useEffect(() => {
@@ -33,6 +39,18 @@ const Index = () => {
   };
 
   const displayedFiles = searchQuery ? searchFiles(searchQuery) : processedFiles;
+
+  // Convert NodeData to FileCard format
+  const filesToDisplay = displayedFiles.map(node => ({
+    id: node.id,
+    name: node.smart_name || node.original_name,
+    originalName: node.original_name,
+    type: node.mime_type || 'application/octet-stream',
+    size: node.file_size || 0,
+    summary: node.summary || undefined,
+    tags: node.tags || undefined,
+    extractedData: node.metadata as Record<string, string> | undefined,
+  }));
 
   return (
     <div className="min-h-screen bg-background relative">
@@ -61,7 +79,7 @@ const Index = () => {
                   className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 border border-primary/20 mb-6"
                 >
                   <Sparkles className="w-4 h-4 text-primary" />
-                  <span className="text-sm text-primary font-medium">IA 100% Locale • Zero Cloud</span>
+                  <span className="text-sm text-primary font-medium">IA Intelligente • Stockage Sécurisé</span>
                 </motion.div>
                 
                 <motion.h2 
@@ -129,21 +147,50 @@ const Index = () => {
                     >
                       <List className="w-5 h-5" />
                     </button>
+                    <button
+                      onClick={() => setViewMode("canvas")}
+                      className={`p-2 rounded-lg transition-colors ${
+                        viewMode === "canvas" 
+                          ? "bg-primary text-primary-foreground" 
+                          : "bg-secondary text-muted-foreground hover:text-foreground"
+                      }`}
+                    >
+                      <Map className="w-5 h-5" />
+                    </button>
                   </div>
                 </div>
 
-                {/* Files Grid */}
-                <div className={`
-                  grid gap-6
-                  ${viewMode === "grid" 
-                    ? "grid-cols-1 md:grid-cols-2 lg:grid-cols-3" 
-                    : "grid-cols-1"
-                  }
-                `}>
-                  {displayedFiles.map((file, index) => (
-                    <FileCard key={file.id} file={file} index={index} />
-                  ))}
-                </div>
+                {/* Files Grid/List */}
+                {viewMode !== "canvas" ? (
+                  <div className={`
+                    grid gap-6
+                    ${viewMode === "grid" 
+                      ? "grid-cols-1 md:grid-cols-2 lg:grid-cols-3" 
+                      : "grid-cols-1"
+                    }
+                  `}>
+                    {filesToDisplay.map((file, index) => (
+                      <FileCard key={file.id} file={file} index={index} />
+                    ))}
+                  </div>
+                ) : (
+                  <SpatialCanvas
+                    nodes={filesToDisplay.map(f => ({
+                      id: f.id,
+                      name: f.name,
+                      type: f.type,
+                      x: 0,
+                      y: 0,
+                      tags: f.tags,
+                    }))}
+                    relations={detectedRelations.map(r => ({
+                      sourceId: r.sourceId,
+                      targetId: r.targetId,
+                      type: 'similar_to',
+                      strength: r.strength,
+                    }))}
+                  />
+                )}
               </motion.div>
             )}
           </AnimatePresence>
@@ -168,9 +215,9 @@ const Index = () => {
                   icon: "🔍",
                 },
                 {
-                  title: "100% Confidentiel",
-                  description: "Tout est traité localement sur votre machine. Aucune donnée ne part.",
-                  icon: "🔐",
+                  title: "Actions Intelligentes",
+                  description: "Extraction de données, classification automatique, et bien plus.",
+                  icon: "⚡",
                 },
               ].map((feature, index) => (
                 <motion.div
@@ -193,7 +240,7 @@ const Index = () => {
         <footer className="py-8 border-t border-border/50 mt-12">
           <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
             <Sparkles className="w-4 h-4 text-primary" />
-            <span>OMNI • Archivage Intelligent Local-First</span>
+            <span>OMNI • Archivage Intelligent</span>
           </div>
         </footer>
       </div>
@@ -203,7 +250,7 @@ const Index = () => {
         isOpen={isOmniBarOpen}
         onClose={() => setIsOmniBarOpen(false)}
         onSearch={setSearchQuery}
-        files={processedFiles.map((f) => ({
+        files={filesToDisplay.map((f) => ({
           id: f.id,
           name: f.name,
           type: f.type,

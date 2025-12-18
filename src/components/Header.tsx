@@ -1,5 +1,13 @@
 import { motion } from "framer-motion";
-import { Command, Sparkles, Shield, Cpu } from "lucide-react";
+import { Command, Sparkles, Shield, Cpu, LogOut, User } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 interface HeaderProps {
   onOpenOmniBar: () => void;
@@ -7,6 +15,8 @@ interface HeaderProps {
 }
 
 export const Header = ({ onOpenOmniBar, fileCount }: HeaderProps) => {
+  const { user, signOut } = useAuth();
+
   return (
     <header className="relative z-20">
       <div className="flex items-center justify-between py-6">
@@ -48,7 +58,7 @@ export const Header = ({ onOpenOmniBar, fileCount }: HeaderProps) => {
           </div>
         </motion.button>
 
-        {/* Right - Stats */}
+        {/* Right - Stats & User */}
         <motion.div 
           className="flex items-center gap-4"
           initial={{ opacity: 0, x: 20 }}
@@ -71,6 +81,37 @@ export const Header = ({ onOpenOmniBar, fileCount }: HeaderProps) => {
               <span className="text-sm text-muted-foreground">fichier{fileCount > 1 ? "s" : ""}</span>
             </div>
           )}
+
+          {/* User Menu */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                className="w-10 h-10 rounded-xl bg-gradient-omni flex items-center justify-center"
+              >
+                <User className="w-5 h-5 text-primary-foreground" />
+              </motion.button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56 glass-elevated">
+              <div className="px-3 py-2">
+                <p className="text-sm font-medium text-foreground truncate">
+                  {user?.email}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Connecté
+                </p>
+              </div>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onClick={signOut}
+                className="text-destructive focus:text-destructive cursor-pointer"
+              >
+                <LogOut className="w-4 h-4 mr-2" />
+                Se déconnecter
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </motion.div>
       </div>
     </header>
