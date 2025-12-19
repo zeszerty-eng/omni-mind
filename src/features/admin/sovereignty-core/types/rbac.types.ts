@@ -70,6 +70,7 @@ export interface TemporalAccessGrant {
   last_accessed_at?: string;
   revoked_at?: string;
   revoked_by?: string;
+  reason?: string;
   created_at: string;
 }
 

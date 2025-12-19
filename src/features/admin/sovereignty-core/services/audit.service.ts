@@ -7,7 +7,8 @@ import type {
   DLPViolation,
   ShadowArchive,
   CreateDLPRuleInput,
-  DLPScanResult
+  DLPScanResult,
+  Anomaly
 } from '../types';
 
 export class AuditService {
@@ -37,6 +38,20 @@ export class AuditService {
         filters.offset || 0,
         (filters.offset || 0) + (filters.limit || 50) - 1
       );
+
+    if (error) throw error;
+    return data || [];
+  }
+
+  /**
+   * Récupérer tous les profils comportementaux d'une organisation
+   */
+  async getBehavioralProfiles(organizationId: string): Promise<BehavioralProfile[]> {
+    const { data, error } = await supabase
+      .from('ai_behavioral_profiles')
+      .select('*')
+      .eq('organization_id', organizationId)
+      .order('risk_score', { ascending: false });
 
     if (error) throw error;
     return data || [];
@@ -156,6 +171,52 @@ export class AuditService {
 
     if (error) throw error;
     return data;
+  }
+
+  async getShadowArchiveByResource(resourceId: string, resourceType: string): Promise<ShadowArchive | null> {
+    const { data, error } = await supabase
+      .from('shadow_archives')
+      .select('*')
+      .eq('original_resource_id', resourceId)
+      .eq('original_resource_type', resourceType)
+      .order('archived_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (error) throw error;
+    return data;
+  }
+
+  async restoreFromShadowArchive(archiveId: string): Promise<boolean> {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('User not authenticated');
+
+    const { data, error } = await supabase.rpc('restore_from_shadow_archive', {
+      p_archive_id: archiveId,
+      p_requested_by: user.id
+    });
+
+    if (error) throw error;
+    return data;
+  }
+
+  /**
+   * Récupérer les anomalies IA pour une organisation
+   */
+  async getAnomalies(organizationId: string): Promise<Anomaly[]> {
+    const { data, error } = await supabase
+      .from('ai_anomalies')
+      .select('*')
+      .eq('organization_id', organizationId)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    return (data || []).map(d => ({
+      detected_at: d.created_at,
+      type: d.type,
+      score: d.severity,
+      details: d.details
+    }));
   }
 }
 

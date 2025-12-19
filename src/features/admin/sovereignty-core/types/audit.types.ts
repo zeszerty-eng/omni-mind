@@ -20,6 +20,11 @@ export interface AuditLog {
   previous_hash?: string;
   current_hash: string;
   created_at: string;
+  // Relationship fields
+  profiles?: {
+    full_name: string;
+    email: string;
+  };
 }
 
 export interface GeoLocation {

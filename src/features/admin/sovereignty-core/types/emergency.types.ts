@@ -132,5 +132,7 @@ export interface LockdownStatus {
   is_locked: boolean;
   level?: LockdownLevel;
   activated_at?: string;
+  activated_by?: string;
+  reason?: string;
   config?: LockdownConfig;
 }

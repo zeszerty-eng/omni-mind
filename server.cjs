@@ -124,9 +124,49 @@ db.serialize(() => {
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   )`);
 
+  db.run(`CREATE TABLE IF NOT EXISTS shadow_archives (
+    id TEXT PRIMARY KEY,
+    organization_id TEXT REFERENCES organizations(id),
+    original_resource_id TEXT,
+    original_resource_type TEXT,
+    archive_data TEXT DEFAULT '{}',
+    archive_metadata TEXT DEFAULT '{}',
+    archived_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`);
+
+  db.run(`CREATE TABLE IF NOT EXISTS ai_anomalies (
+    id TEXT PRIMARY KEY,
+    organization_id TEXT REFERENCES organizations(id),
+    user_id TEXT,
+    type TEXT,
+    severity REAL,
+    details TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`);
+
   // Seed default org
   db.run(`INSERT OR IGNORE INTO organizations (id, name, slug) VALUES ('default-org', 'Omni Corp', 'omni-corp')`);
   db.run(`INSERT OR IGNORE INTO organization_members (id, organization_id, user_id, role) VALUES ('default-mem', 'default-org', 'ffc13a83-6efb-4e96-a25e-2c4d55e8e91a', 'owner')`);
+  
+  // Seed a simulated deletion log and its shadow archive for testing recovery
+  const adminId = 'ffc13a83-6efb-4e96-a25e-2c4d55e8e91a';
+  const deletionLogId = 'test-deletion-log';
+  const resourceId = 'deleted-file-123';
+  db.run(`INSERT OR IGNORE INTO audit_logs_immutable (id, organization_id, user_id, action, resource_type, resource_id, is_suspicious, risk_score) 
+          VALUES (?, 'default-org', ?, 'delete', 'file', ?, 1, 0.85)`,
+          [deletionLogId, adminId, resourceId]);
+  
+  db.run(`INSERT OR IGNORE INTO shadow_archives (id, organization_id, original_resource_id, original_resource_type, archive_data)
+          VALUES ('test-archive-1', 'default-org', ?, 'file', '{"name": "Secret_Project.pdf", "content": "Sensitive data..."}')`,
+          [resourceId]);
+
+  // Seed anomalies
+  db.run(`INSERT OR IGNORE INTO ai_anomalies (id, organization_id, user_id, type, severity, details, created_at) 
+          VALUES ('anom-1', 'default-org', ?, 'Timing', 0.8, 'Activité inhabituelle à 03:42 AM', datetime('now', '-2 days'))`, [adminId]);
+  db.run(`INSERT OR IGNORE INTO ai_anomalies (id, organization_id, user_id, type, severity, details, created_at) 
+          VALUES ('anom-2', 'default-org', ?, 'Volume', 0.6, 'Téléchargement massif de fichiers (142 nodes)', datetime('now', '-1 days'))`, [adminId]);
+  db.run(`INSERT OR IGNORE INTO ai_anomalies (id, organization_id, user_id, type, severity, details, created_at) 
+          VALUES ('anom-3', 'default-org', ?, 'Geo', 0.95, 'Connexion depuis une IP non répertoriée (VPN détecté)', datetime('now'))`, [adminId]);
 });
 
 // Multer setup for file uploads
@@ -217,6 +257,10 @@ app.post('/api/rpc/:fn', (req, res) => {
 
     case 'get_command_suggestions':
       res.json({ suggestions: [], count: 0 });
+      break;
+
+    case 'restore_from_shadow_archive':
+      res.json(true);
       break;
 
     default:

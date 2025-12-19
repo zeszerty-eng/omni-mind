@@ -5,7 +5,8 @@ import {
   LayoutDashboard, Users, Shield, Terminal, Settings,
   AlertTriangle, Activity, Sparkles, Brain, FileSearch,
   Lock, Key, LogOut, RefreshCw, Bell, Search, 
-  ChevronRight, ArrowLeft, MoreHorizontal, User as UserIcon
+  ChevronRight, ArrowLeft, MoreHorizontal, User as UserIcon,
+  ShieldAlert
 } from 'lucide-react';
 import { BackgroundEffects } from '@/components/BackgroundEffects';
 import { PulseDashboard } from '@/components/admin/PulseDashboard';
@@ -15,6 +16,8 @@ import { AuditExplorer } from '@/features/admin/sovereignty-core/components/Audi
 import { CommandConsole } from '@/features/admin/sovereignty-core/components/CommandConsole';
 import { BehavioralIntelligence } from '@/features/admin/sovereignty-core/components/BehavioralIntelligence';
 import { AccessPolicyManager } from '@/features/admin/sovereignty-core/components/AccessPolicyManager';
+import { DLPManager } from '@/features/admin/sovereignty-core/components/DLPManager';
+import { KeyManagement } from '@/features/admin/sovereignty-core/components/KeyManagement';
 import { useAdmin } from '@/hooks/useAdmin';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -29,27 +32,35 @@ import {
   DropdownMenuLabel,
 } from '@/components/ui/dropdown-menu';
 
-type AdminTab = 'pulse' | 'users' | 'logs' | 'ia' | 'console' | 'rbac' | 'security' | 'settings';
+import { ElevationStatusBar } from '@/features/admin/sovereignty-core/components/ElevationStatusBar';
+import { useSovereignty } from '@/features/admin/sovereignty-core/hooks/useSovereignty';
+
+type AdminTab = 'pulse' | 'users' | 'logs' | 'ia' | 'console' | 'rbac' | 'security' | 'settings' | 'dlp' | 'keys';
 
 const Admin = () => {
   const navigate = useNavigate();
   const { user, signOut } = useAuth();
-  const { isAdmin, isSuperAdmin, loading } = useAdmin();
+  const { isAdmin, isSuperAdmin, loading: adminLoading } = useAdmin();
+  
+  // Centralized Sovereignty State
+  const organizationId = 'default-org'; // Hardcoded for local alignment
+  const sovereignty = useSovereignty(organizationId);
+
   const [activeTab, setActiveTab] = useState<AdminTab>('pulse');
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // Hardcoded for local-dev alignment
-  const organizationId = 'default-org';
-
   useEffect(() => {
-    if (!loading && !isAdmin) {
+    if (!adminLoading && !isAdmin) {
       navigate('/');
     }
-  }, [isAdmin, loading, navigate]);
+  }, [isAdmin, adminLoading, navigate]);
 
-  const handleRefresh = () => {
+  const handleRefresh = async () => {
     setIsRefreshing(true);
-    setTimeout(() => setIsRefreshing(false), 1000);
+    await sovereignty.fetchAuditLogs();
+    await sovereignty.refreshLockdownStatus();
+    await sovereignty.refreshActiveGrants();
+    setTimeout(() => setIsRefreshing(false), 800);
   };
 
   const handleLogout = async () => {
@@ -57,7 +68,7 @@ const Admin = () => {
     navigate('/auth');
   };
 
-  if (loading) {
+  if (adminLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
@@ -88,8 +99,10 @@ const Admin = () => {
     {
       title: 'Protection',
       tabs: [
-        { id: 'security' as AdminTab, label: 'Sécurité d\'Urgence', icon: AlertTriangle },
-        { id: 'settings' as AdminTab, label: 'Paramètres Noyau', icon: Settings },
+        { id: 'security' as AdminTab, label: 'Urgence', icon: AlertTriangle },
+        { id: 'dlp' as AdminTab, label: 'DLP (Fuites)', icon: ShieldAlert },
+        { id: 'keys' as AdminTab, label: 'Clés KMS', icon: Key },
+        { id: 'settings' as AdminTab, label: 'Système', icon: Settings },
       ]
     }
   ];
@@ -97,6 +110,12 @@ const Admin = () => {
   return (
     <div className="min-h-screen bg-background relative selection:bg-primary/30 flex overflow-hidden">
       <BackgroundEffects />
+
+      <ElevationStatusBar 
+        activeGrants={sovereignty.activeGrants}
+        lockdownStatus={sovereignty.lockdownStatus}
+        onRefresh={sovereignty.refreshActiveGrants}
+      />
       
       {/* Sidebar */}
       <motion.aside
@@ -253,6 +272,8 @@ const Admin = () => {
                     {activeTab === 'console' && "Interface de commande directe pour les opérations administratives critiques."}
                     {activeTab === 'rbac' && "Définition précise des droits d'accès contextuels et temporels."}
                     {activeTab === 'security' && "Protocoles d'urgence et mécanisme de verrouillage global du système."}
+                    {activeTab === 'dlp' && "Surveillance et prévention des fuites de données sensibles (Patterns & Regex)."}
+                    {activeTab === 'keys' && "Gestion du cycle de vie des clés de chiffrement et statut HSM."}
                     {activeTab === 'settings' && "Configuration avancée des paramètres internes de souveraineté."}
                   </p>
                 </div>
@@ -275,6 +296,8 @@ const Admin = () => {
                 {activeTab === 'console' && <CommandConsole organizationId={organizationId} />}
                 {activeTab === 'rbac' && <AccessPolicyManager organizationId={organizationId} />}
                 {activeTab === 'security' && <KillSwitchPanel organizationId={organizationId} />}
+                {activeTab === 'dlp' && <DLPManager organizationId={organizationId} />}
+                {activeTab === 'keys' && <KeyManagement organizationId={organizationId} />}
                 {activeTab === 'settings' && (
                   <div className="flex flex-col items-center justify-center p-20 glass rounded-3xl border-dashed border-2 border-border/60">
                     <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mb-6">

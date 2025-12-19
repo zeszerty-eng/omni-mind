@@ -1,163 +1,115 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
-  Search, Filter, Download, Eye, AlertTriangle, 
-  ChevronDown, FileSearch, Shield, User, Calendar,
-  ExternalLink, Hash
+  FileSearch, Shield, User, Calendar,
+  ExternalLink, Hash, AlertTriangle, XCircle,
+  Wifi, WifiOff, Activity, RotateCcw
 } from 'lucide-react';
 import { useSovereignty } from '../hooks/useSovereignty';
-import { 
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow 
-} from '@/components/ui/table';
-import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
+import { auditService } from '../services/audit.service';
 import { Badge } from '@/components/ui/badge';
-import { Card } from '@/components/ui/card';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import type { AuditLog } from '../types';
+import { Button } from '@/components/ui/button';
+import { toast } from '@/hooks/use-toast';
+import { AuditTable } from './ui/AuditTable';
+import { AuditFilters } from './ui/AuditFilters';
+import type { AuditLog, ShadowArchive } from '../types';
 
 interface AuditExplorerProps {
   organizationId: string;
 }
 
 export const AuditExplorer = ({ organizationId }: AuditExplorerProps) => {
-  const { logs, loading, fetchAuditLogs } = useSovereignty(organizationId);
+  const { logs, loading, fetchAuditLogs, realtimeStatus } = useSovereignty(organizationId);
   const [search, setSearch] = useState('');
   const [selectedLog, setSelectedLog] = useState<AuditLog | null>(null);
   const [filterAction, setFilterAction] = useState<string | null>(null);
+  const [shadowArchive, setShadowArchive] = useState<ShadowArchive | null>(null);
+  const [isRestoring, setIsRestoring] = useState(false);
 
   useEffect(() => {
     fetchAuditLogs({ 
-      organizationId,
       action: filterAction as any || undefined
     });
   }, [organizationId, filterAction, fetchAuditLogs]);
 
+  useEffect(() => {
+    if (selectedLog && selectedLog.action === 'delete') {
+      auditService.getShadowArchiveByResource(selectedLog.resource_id!, selectedLog.resource_type)
+        .then(setShadowArchive)
+        .catch(() => setShadowArchive(null));
+    } else {
+      setShadowArchive(null);
+    }
+  }, [selectedLog]);
+
+  const handleRestore = async () => {
+    if (!shadowArchive) return;
+    setIsRestoring(true);
+    try {
+      await auditService.restoreFromShadowArchive(shadowArchive.id);
+      toast({
+        title: "Restauration initiée",
+        description: "La ressource a été restaurée avec succès depuis l'archive Shadow.",
+      });
+      setShadowArchive(null);
+    } catch (err: any) {
+      toast({
+        title: "Échec de la restauration",
+        description: err.message,
+        variant: "destructive",
+      });
+    } finally {
+      setIsRestoring(false);
+    }
+  };
+
   const filteredLogs = logs.filter(log => 
     log.action.toLowerCase().includes(search.toLowerCase()) ||
     log.target_name?.toLowerCase().includes(search.toLowerCase()) ||
-    log.profiles?.email?.toLowerCase().includes(search.toLowerCase())
+    (log.profiles?.email && log.profiles.email.toLowerCase().includes(search.toLowerCase()))
   );
-
-  const getRiskColor = (score: number) => {
-    if (score > 0.7) return 'bg-red-500/20 text-red-500 border-red-500/50';
-    if (score > 0.4) return 'bg-orange-500/20 text-orange-500 border-orange-500/50';
-    return 'bg-green-500/20 text-green-500 border-green-500/50';
-  };
 
   return (
     <div className="space-y-6">
       {/* Search and Filters */}
-      <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
-        <div className="relative flex-1 w-full max-w-md">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input 
-            placeholder="Rechercher par action, utilisateur ou cible..." 
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-9 bg-secondary/50 border-border"
-          />
+      <div className="flex flex-col gap-4">
+        <div className="flex items-center justify-between px-2">
+          <div className="flex items-center gap-4">
+            <h3 className="text-sm font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-2">
+               <Activity className="w-4 h-4" /> Analyse Dynamique
+            </h3>
+            <Badge 
+              variant="outline" 
+              className={`gap-1.5 py-0.5 px-2 text-[9px] uppercase font-bold border-none ${
+                realtimeStatus === 'connected' ? 'bg-green-500/10 text-green-400' : 'bg-red-500/10 text-red-400'
+              }`}
+            >
+              <div className={`w-1 h-1 rounded-full ${realtimeStatus === 'connected' ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`} />
+              {realtimeStatus === 'connected' ? 'Live Sync' : 'Offline'}
+            </Badge>
+          </div>
+          <span className="text-[10px] text-muted-foreground italic font-mono">
+            {filteredLogs.length} Entrées chargées
+          </span>
         </div>
-        
-        <div className="flex gap-2 w-full md:w-auto">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" className="gap-2">
-                <Filter className="w-4 h-4" />
-                {filterAction || 'Toutes les actions'}
-                <ChevronDown className="w-4 h-4 opacity-50" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-48">
-              <DropdownMenuItem onClick={() => setFilterAction(null)}>Toutes les actions</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setFilterAction('login')}>Connexion</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setFilterAction('create')}>Création</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setFilterAction('delete')}>Suppression</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setFilterAction('revoke')}>Révocation</DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-          
-          <Button variant="outline" className="gap-2">
-            <Download className="w-4 h-4" />
-            Exporter
-          </Button>
-        </div>
+
+        <AuditFilters
+          search={search}
+          onSearchChange={setSearch}
+          filterAction={filterAction}
+          onFilterChange={setFilterAction}
+          onExport={() => alert('Export non implémenté en mode local')}
+        />
       </div>
 
       {/* Logs Table */}
-      <Card className="glass overflow-hidden border-border">
-        <Table>
-          <TableHeader className="bg-secondary/50">
-            <TableRow>
-              <TableHead className="w-[180px]">Action</TableHead>
-              <TableHead>Utilisateur</TableHead>
-              <TableHead>Cible / Ressource</TableHead>
-              <TableHead>Date / Heure</TableHead>
-              <TableHead className="text-right">Score de Risque</TableHead>
-              <TableHead className="w-[50px]"></TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {loading ? (
-              <TableRow>
-                <TableCell colSpan={6} className="h-32 text-center text-muted-foreground">
-                  Chargement des logs...
-                </TableCell>
-              </TableRow>
-            ) : filteredLogs.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={6} className="h-32 text-center text-muted-foreground">
-                  Aucun log trouvé.
-                </TableCell>
-              </TableRow>
-            ) : filteredLogs.map((log) => (
-              <TableRow 
-                key={log.id} 
-                className="hover:bg-secondary/30 transition-colors cursor-pointer"
-                onClick={() => setSelectedLog(log)}
-              >
-                <TableCell>
-                  <Badge variant="outline" className="font-mono text-[10px] uppercase bg-secondary/80">
-                    {log.action}
-                  </Badge>
-                </TableCell>
-                <TableCell>
-                  <div className="flex flex-col">
-                    <span className="text-sm font-medium">{log.profiles?.full_name || 'Inconnu'}</span>
-                    <span className="text-xs text-muted-foreground italic">{log.profiles?.email}</span>
-                  </div>
-                </TableCell>
-                <TableCell>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-mono text-muted-foreground">{log.resource_type}</span>
-                    <span className="text-sm">{log.target_name || log.resource_id?.slice(0, 8)}</span>
-                  </div>
-                </TableCell>
-                <TableCell className="text-xs text-muted-foreground font-mono">
-                  {new Date(log.created_at).toLocaleString('fr-FR')}
-                </TableCell>
-                <TableCell className="text-right">
-                  <Badge className={getRiskColor(log.risk_score)}>
-                    {(log.risk_score * 100).toFixed(0)}%
-                  </Badge>
-                </TableCell>
-                <TableCell>
-                  <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-primary/20">
-                    <Eye className="w-4 h-4 text-primary" />
-                  </Button>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </Card>
+      <AuditTable 
+        logs={filteredLogs}
+        loading={loading}
+        onSelectLog={setSelectedLog}
+      />
 
-      {/* Detail Panel (Slide-in or Dialog) */}
+      {/* Detail Panel */}
       <AnimatePresence>
         {selectedLog && (
           <motion.div
@@ -190,7 +142,7 @@ export const AuditExplorer = ({ organizationId }: AuditExplorerProps) => {
                   <p className="text-xs text-muted-foreground mb-1 flex items-center gap-1">
                     <User className="w-3 h-3" /> Utilisateur
                   </p>
-                  <p className="text-sm font-medium">{selectedLog.profiles?.full_name}</p>
+                  <p className="text-sm font-medium">{selectedLog.profiles?.full_name || 'Système'}</p>
                 </div>
                 <div className="p-4 rounded-xl bg-secondary/30 border border-border">
                   <p className="text-xs text-muted-foreground mb-1 flex items-center gap-1">
@@ -225,12 +177,25 @@ export const AuditExplorer = ({ organizationId }: AuditExplorerProps) => {
                 </p>
               </div>
 
-              <div>
-                <p className="text-sm font-semibold mb-3">Métadonnées étendues (Immutable)</p>
-                <pre className="text-[10px] font-mono p-4 rounded-xl bg-black/40 text-primary-foreground overflow-x-auto">
-                  {JSON.stringify(selectedLog.metadata || {}, null, 2)}
-                </pre>
-              </div>
+              {shadowArchive && (
+                <div className="p-4 rounded-xl bg-primary/10 border border-primary/20 space-y-3">
+                  <div className="flex items-center gap-2 text-primary">
+                    <RotateCcw className="w-4 h-4" />
+                    <p className="text-xs font-bold uppercase tracking-widest">Archive WORM disponible</p>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground">
+                    Une copie immuable de cette ressource (Node ID: {shadowArchive.original_resource_id}) a été capturée avant sa suppression. 
+                    Vous pouvez restaurer cette donnée immédiatement.
+                  </p>
+                  <Button 
+                    className="w-full h-8 text-[10px] uppercase font-bold gap-2 bg-primary hover:bg-primary/90"
+                    onClick={handleRestore}
+                    disabled={isRestoring}
+                  >
+                    {isRestoring ? "Restauration..." : "Restaurer via Multi-sig (Simulation)"}
+                  </Button>
+                </div>
+              )}
 
               <div className="pt-6 border-t border-border flex gap-2">
                 <Button variant="outline" className="flex-1 gap-2">
@@ -250,22 +215,4 @@ export const AuditExplorer = ({ organizationId }: AuditExplorerProps) => {
   );
 };
 
-const XCircle = ({ className, ...props }: any) => (
-  <svg
-    xmlns="http://www.w3.org/2000/svg"
-    width="24"
-    height="24"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    className={className}
-    {...props}
-  >
-    <circle cx="12" cy="12" r="10" />
-    <path d="m15 9-6 6" />
-    <path d="m9 9 6 6" />
-  </svg>
-);
+export default AuditExplorer;
