@@ -8,6 +8,7 @@ import { BackgroundEffects } from "@/components/BackgroundEffects";
 import { SpatialCanvas } from "@/components/SpatialCanvas";
 import { useLocalNodes } from "@/hooks/useLocalNodes";
 import { useRelations } from "@/hooks/useRelations";
+import { aiPipeline } from "@/services/local-ai/pipeline.service";
 import { Grid, List, Sparkles, Map, WifiOff } from "lucide-react";
 
 const Index = () => {
@@ -18,7 +19,6 @@ const Index = () => {
   const [isDraggingGlobal, setIsDraggingGlobal] = useState(false);
   
   const { nodes, isProcessing, processFiles, searchNodes } = useLocalNodes();
-  const { detectSimilarities } = useRelations();
   const [searchResults, setSearchResults] = useState<any[]>([]);
 
   // Monitor offline status
@@ -62,8 +62,8 @@ const Index = () => {
     };
   }, []);
 
-  // Detect similarities between nodes
-  const detectedRelations = detectSimilarities(nodes.map(n => ({ id: n.id?.toString() || '', tags: n.tags || [] })));
+  // Detect similarities between nodes using AI Embeddings
+  const detectedRelations = aiPipeline.calculateSimilarities(nodes);
 
   // Keyboard shortcut for OmniBar
   useEffect(() => {

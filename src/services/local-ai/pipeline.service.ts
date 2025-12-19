@@ -1,4 +1,8 @@
 import { db, type LocalDocument } from './db';
+import * as pdfjs from 'pdfjs-dist';
+
+// Configure PDF.js worker
+pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`;
 
 class AIPipelineService {
   private worker: Worker | null = null;
@@ -33,7 +37,7 @@ class AIPipelineService {
       if (type === 'text-result' && id) {
         const resolve = this.pendingRequests.get(id);
         if (resolve) {
-          resolve(text);
+          resolve(event.data.text);
           this.pendingRequests.delete(id);
         }
       }
@@ -61,6 +65,8 @@ class AIPipelineService {
         });
       });
       if (!text) text = `Image: ${file.name}`;
+    } else if (file.type === 'application/pdf') {
+      text = await this.extractPdfText(file);
     } else {
       text = await file.text();
     }
@@ -131,6 +137,47 @@ class AIPipelineService {
       norm2 += v2[i] * v2[i];
     }
     return dotProduct / (Math.sqrt(norm1) * Math.sqrt(norm2));
+  }
+
+  private async extractPdfText(file: File): Promise<string> {
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      const loadingTask = pdfjs.getDocument({ data: arrayBuffer });
+      const pdf = await loadingTask.promise;
+      let fullText = '';
+      
+      for (let i = 1; i <= pdf.numPages; i++) {
+        const page = await pdf.getPage(i);
+        const textContent = await page.getTextContent();
+        const pageText = textContent.items
+          .map((item: any) => item.str)
+          .join(' ');
+        fullText += pageText + '\n';
+      }
+      return fullText || `PDF: ${file.name} (Aucun texte extrait)`;
+    } catch (error) {
+      console.error('Error extracting PDF text:', error);
+      return `PDF Error: ${file.name}`;
+    }
+  }
+
+  calculateSimilarities(docs: LocalDocument[]): Array<{ sourceId: string; targetId: string; strength: number }> {
+    const similarities: Array<{ sourceId: string; targetId: string; strength: number }> = [];
+    for (let i = 0; i < docs.length; i++) {
+      for (let j = i + 1; j < docs.length; j++) {
+        if (docs[i].embedding && docs[j].embedding) {
+          const strength = this.cosineSimilarity(docs[i].embedding!, docs[j].embedding!);
+          if (strength > 0.7) { // Seuil de similarité sémantique
+            similarities.push({
+              sourceId: docs[i].id!.toString(),
+              targetId: docs[j].id!.toString(),
+              strength
+            });
+          }
+        }
+      }
+    }
+    return similarities;
   }
 
   private fileToBase64(file: File): Promise<string> {
