@@ -118,7 +118,7 @@ export const supabase: any = {
     getUser: async () => ({ data: { user: { id: 'local-user', email: 'local@omni.local' } }, error: null }),
     getSession: async () => ({ data: { session: { user: { id: 'local-user' } } }, error: null }),
     onAuthStateChange: (cb: any) => {
-      cb('SIGNED_IN', { user: { id: 'local-user' } });
+      setTimeout(() => cb('SIGNED_IN', { user: { id: 'local-user', email: 'local@omni.local' } }), 0);
       return { data: { subscription: { unsubscribe: () => {} } } };
     },
     signInWithPassword: async (creds: any) => ({ data: { user: { id: 'local-user' } }, error: null }),
