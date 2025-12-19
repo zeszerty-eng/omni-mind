@@ -68,6 +68,20 @@ const createChain = (table: string, method: string = 'GET', body?: any) => {
 
 export const supabase: any = {
   from: (table: string) => createChain(table),
+  channel: (name: string) => ({
+    on: (event: string, opts: any, cb?: any) => ({
+      on: (event: string, opts: any, cb?: any) => ({ subscribe: (cb?: any) => ({ unsubscribe: () => {} }) }),
+      subscribe: (cb?: any) => {
+        if (cb) cb('SUBSCRIBED');
+        return { unsubscribe: () => {} };
+      }
+    }),
+    subscribe: (cb?: any) => {
+      if (cb) cb('SUBSCRIBED');
+      return { unsubscribe: () => {} };
+    }
+  }),
+  removeChannel: () => {},
   rpc: async (fn: string, params: any) => {
     try {
       const res = await fetch(`${API_URL}/rpc/${fn}`, {
