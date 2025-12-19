@@ -43,6 +43,90 @@ db.serialize(() => {
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
   )`);
+
+  // Sovereignty Core Tables
+  db.run(`CREATE TABLE IF NOT EXISTS organizations (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    slug TEXT UNIQUE,
+    settings TEXT DEFAULT '{}',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`);
+
+  db.run(`CREATE TABLE IF NOT EXISTS organization_members (
+    id TEXT PRIMARY KEY,
+    organization_id TEXT REFERENCES organizations(id),
+    user_id TEXT,
+    role TEXT,
+    is_active BOOLEAN DEFAULT 1,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`);
+
+  db.run(`CREATE TABLE IF NOT EXISTS audit_logs_immutable (
+    id TEXT PRIMARY KEY,
+    organization_id TEXT REFERENCES organizations(id),
+    user_id TEXT,
+    action TEXT,
+    resource_type TEXT,
+    resource_id TEXT,
+    metadata TEXT DEFAULT '{}',
+    risk_score REAL DEFAULT 0,
+    is_suspicious BOOLEAN DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`);
+
+  db.run(`CREATE TABLE IF NOT EXISTS emergency_actions (
+    id TEXT PRIMARY KEY,
+    organization_id TEXT REFERENCES organizations(id),
+    action_type TEXT,
+    status TEXT DEFAULT 'pending',
+    reason TEXT,
+    initiated_by TEXT,
+    confirmations TEXT DEFAULT '[]',
+    requires_confirmations INTEGER DEFAULT 2,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`);
+
+  db.run(`CREATE TABLE IF NOT EXISTS system_lockdowns (
+    id TEXT PRIMARY KEY,
+    organization_id TEXT REFERENCES organizations(id),
+    level TEXT,
+    is_active BOOLEAN DEFAULT 1,
+    activated_by TEXT,
+    activated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`);
+
+  db.run(`CREATE TABLE IF NOT EXISTS system_metrics (
+    id TEXT PRIMARY KEY,
+    organization_id TEXT REFERENCES organizations(id),
+    metric_type TEXT,
+    metric_value REAL,
+    metadata TEXT DEFAULT '{}',
+    recorded_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`);
+
+  db.run(`CREATE TABLE IF NOT EXISTS admin_command_history (
+    id TEXT PRIMARY KEY,
+    organization_id TEXT REFERENCES organizations(id),
+    admin_id TEXT,
+    command_raw TEXT,
+    execution_status TEXT,
+    executed_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`);
+
+  db.run(`CREATE TABLE IF NOT EXISTS command_templates (
+    id TEXT PRIMARY KEY,
+    organization_id TEXT,
+    name TEXT,
+    template TEXT,
+    category TEXT,
+    is_active BOOLEAN DEFAULT 1,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`);
+
+  // Seed default org
+  db.run(`INSERT OR IGNORE INTO organizations (id, name, slug) VALUES ('default-org', 'Omni Corp', 'omni-corp')`);
+  db.run(`INSERT OR IGNORE INTO organization_members (id, organization_id, user_id, role) VALUES ('default-mem', 'default-org', 'local-user', 'owner')`);
 });
 
 // Multer setup for file uploads
@@ -97,6 +181,48 @@ app.get('/api/:table', (req, res) => {
       res.json(rows);
     });
   });
+});
+
+app.post('/api/rpc/:fn', (req, res) => {
+  const { fn } = req.params;
+  const params = req.body;
+  console.log(`RPC Call: ${fn}`, params);
+
+  switch (fn) {
+    case 'check_contextual_access':
+      res.json({ allowed: true, visibility: 'full', mfa_required: false });
+      break;
+    
+    case 'scan_content_for_dlp':
+      res.json({ violations: [], risk_score: 0 });
+      break;
+    
+    case 'initiate_emergency_action':
+      const id = Date.now().toString();
+      db.run(`INSERT INTO emergency_actions (id, organization_id, action_type, reason, initiated_by) VALUES (?, ?, ?, ?, ?)`,
+        [id, params.p_organization_id, params.p_action_type, params.p_reason, params.p_initiated_by],
+        (err) => {
+          if (err) return res.status(500).json({ error: err.message });
+          res.json(id);
+        });
+      break;
+
+    case 'is_organization_locked_down':
+      res.json({ is_locked: false });
+      break;
+
+    case 'execute_admin_command':
+      res.json(`Command ${params.p_command} executed successfully (simulated)`);
+      break;
+
+    case 'get_command_suggestions':
+      res.json({ suggestions: [], count: 0 });
+      break;
+
+    default:
+      console.warn(`Unhandled RPC: ${fn}`);
+      res.json({ success: true, message: `Simulated success for ${fn}` });
+  }
 });
 
 app.post('/api/nodes', upload.single('file'), async (req, res) => {
