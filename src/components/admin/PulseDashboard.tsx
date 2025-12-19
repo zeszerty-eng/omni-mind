@@ -12,9 +12,9 @@ interface PulseDashboardProps {
 }
 
 export const PulseDashboard = ({ organizationId }: PulseDashboardProps) => {
-  const { logs, fetchLogs } = useAudit();
-  const { metrics, fetchMetrics, recordMetric } = useMetrics();
-  const { sessions, fetchSessions } = useSessions();
+  const { logs, fetchLogs, subscribeToLogs } = useAudit();
+  const { metrics, fetchMetrics, subscribeToMetrics } = useMetrics();
+  const { sessions, fetchSessions, subscribeToSessions } = useSessions();
   const [realtimeEvents, setRealtimeEvents] = useState<Array<{
     id: string;
     type: string;
@@ -28,25 +28,38 @@ export const PulseDashboard = ({ organizationId }: PulseDashboardProps) => {
     fetchMetrics(organizationId);
     fetchSessions(organizationId);
 
-    // Simulate real-time events for demo
-    const interval = setInterval(() => {
-      const events = [
-        { type: 'upload', message: 'Fichier uploadé', color: 'text-green-400' },
-        { type: 'view', message: 'Document consulté', color: 'text-blue-400' },
-        { type: 'login', message: 'Connexion utilisateur', color: 'text-primary' },
-        { type: 'encrypt', message: 'Chiffrement terminé', color: 'text-purple-400' },
-      ];
-      const randomEvent = events[Math.floor(Math.random() * events.length)];
-      
-      setRealtimeEvents(prev => [{
-        id: crypto.randomUUID(),
-        ...randomEvent,
-        timestamp: new Date(),
-      }, ...prev].slice(0, 15));
-    }, 3000);
+    // Subscribe to real-time audit logs
+    const unsubscribeLogs = subscribeToLogs(organizationId, (newLog) => {
+      const colors: Record<string, string> = {
+        create: 'text-green-400',
+        view: 'text-blue-400',
+        login: 'text-primary',
+        update: 'text-purple-400',
+        delete: 'text-red-400',
+      };
 
-    return () => clearInterval(interval);
-  }, [organizationId]);
+      setRealtimeEvents(prev => [{
+        id: newLog.id,
+        type: newLog.action,
+        message: `${newLog.profiles?.full_name || 'Un utilisateur'} : ${newLog.action} ${newLog.target_type || ''}`,
+        timestamp: new Date(newLog.created_at),
+        color: colors[newLog.action] || 'text-muted-foreground',
+      }, ...prev].slice(0, 15));
+    });
+
+    // Subscribe to metrics
+    const unsubscribeMetrics = subscribeToMetrics(organizationId);
+
+    // Subscribe to sessions
+    const unsubscribeSessions = subscribeToSessions(organizationId);
+
+    return () => {
+      unsubscribeLogs();
+      unsubscribeMetrics();
+      unsubscribeSessions();
+    };
+  }, [organizationId, fetchLogs, fetchMetrics, fetchSessions, subscribeToLogs, subscribeToMetrics, subscribeToSessions]);
+
 
   const stats = [
     { 

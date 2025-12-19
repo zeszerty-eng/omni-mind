@@ -67,7 +67,7 @@ export const useAudit = () => {
     setLoading(true);
     try {
       let query = supabase
-        .from('audit_logs')
+        .from('audit_logs_immutable')
         .select(`
           *,
           profiles:user_id (
@@ -105,6 +105,40 @@ export const useAudit = () => {
     }
   }, []);
 
+  const subscribeToLogs = useCallback((organizationId?: string, onNewLog?: (log: AuditLog) => void) => {
+    const channel = supabase
+      .channel('public:audit_logs_immutable')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'audit_logs_immutable',
+          filter: organizationId ? `organization_id=eq.${organizationId}` : undefined
+        },
+        async (payload) => {
+          const newLog = payload.new as AuditLog;
+          
+          // Fetch profile info for the new log
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('email, full_name')
+            .eq('id', newLog.user_id)
+            .single();
+            
+          const logWithProfile = { ...newLog, profiles: profile };
+          
+          setLogs(prev => [logWithProfile, ...prev].slice(0, 100));
+          if (onNewLog) onNewLog(logWithProfile);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
+
   const logAction = useCallback(async (
     action: AuditAction,
     targetType?: string,
@@ -117,15 +151,15 @@ export const useAudit = () => {
 
     try {
       await supabase
-        .from('audit_logs')
+        .from('audit_logs_immutable')
         .insert({
           user_id: user.id,
           organization_id: organizationId,
           action,
-          target_type: targetType,
-          target_id: targetId,
+          resource_type: targetType,
+          resource_id: targetId,
           target_name: targetName,
-          details: details || {},
+          metadata: details || {},
           user_agent: navigator.userAgent,
         });
     } catch (error) {
@@ -136,7 +170,7 @@ export const useAudit = () => {
   const getSuspiciousActivity = useCallback(async (organizationId?: string) => {
     try {
       let query = supabase
-        .from('audit_logs')
+        .from('audit_logs_immutable')
         .select('*')
         .eq('is_suspicious', true)
         .order('created_at', { ascending: false })
@@ -159,6 +193,7 @@ export const useAudit = () => {
     logs,
     loading,
     fetchLogs,
+    subscribeToLogs,
     logAction,
     getSuspiciousActivity,
   };
@@ -173,15 +208,15 @@ export const useSessions = () => {
     setLoading(true);
     try {
       let query = supabase
-        .from('active_sessions')
+        .from('admin_sessions')
         .select(`
           *,
-          profiles:user_id (
+          profiles:admin_id (
             email,
             full_name
           )
         `)
-        .eq('status', 'active')
+        .eq('is_active', true)
         .order('last_activity_at', { ascending: false });
 
       if (organizationId) {
@@ -199,16 +234,38 @@ export const useSessions = () => {
     }
   }, []);
 
+  const subscribeToSessions = useCallback((organizationId?: string) => {
+    const channel = supabase
+      .channel('public:admin_sessions')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'admin_sessions',
+          filter: organizationId ? `organization_id=eq.${organizationId}` : undefined
+        },
+        () => {
+          fetchSessions(organizationId);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [fetchSessions]);
+
   const revokeSession = useCallback(async (sessionId: string) => {
     if (!user) return;
 
     try {
       const { error } = await supabase
-        .from('active_sessions')
+        .from('admin_sessions')
         .update({
-          status: 'revoked',
-          revoked_at: new Date().toISOString(),
-          revoked_by: user.id,
+          is_active: false,
+          terminated_at: new Date().toISOString(),
+          termination_reason: 'Revoked by admin',
         })
         .eq('id', sessionId);
 
@@ -225,13 +282,13 @@ export const useSessions = () => {
 
     try {
       let query = supabase
-        .from('active_sessions')
+        .from('admin_sessions')
         .update({
-          status: 'revoked',
-          revoked_at: new Date().toISOString(),
-          revoked_by: user.id,
+          is_active: false,
+          terminated_at: new Date().toISOString(),
+          termination_reason: 'Revoked all by admin',
         })
-        .eq('status', 'active');
+        .eq('is_active', true);
 
       if (organizationId) {
         query = query.eq('organization_id', organizationId);
@@ -250,6 +307,7 @@ export const useSessions = () => {
     sessions,
     loading,
     fetchSessions,
+    subscribeToSessions,
     revokeSession,
     revokeAllSessions,
   };
@@ -286,6 +344,28 @@ export const useMetrics = () => {
     }
   }, []);
 
+  const subscribeToMetrics = useCallback((organizationId?: string) => {
+    const channel = supabase
+      .channel('public:system_metrics')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'system_metrics',
+          filter: organizationId ? `organization_id=eq.${organizationId}` : undefined
+        },
+        (payload) => {
+          setMetrics(prev => [payload.new as SystemMetric, ...prev].slice(0, 100));
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
+
   const recordMetric = useCallback(async (
     metricType: string,
     metricValue: number,
@@ -310,6 +390,9 @@ export const useMetrics = () => {
     metrics,
     loading,
     fetchMetrics,
+    subscribeToMetrics,
     recordMetric,
   };
 };
+
+

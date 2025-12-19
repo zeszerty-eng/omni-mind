@@ -75,6 +75,18 @@ Système de Command Palette pour admins:
 
 ---
 
+### 006 - System Metrics
+**Fichier**: `006_system_metrics.sql`
+
+Table pour le suivi des métriques système en temps réel:
+- Suivi CPU, mémoire, disque, latence
+- RLS pour accès admin
+- Support pour métriques globales (sans org_id)
+
+**Dépendances**: 001
+
+---
+
 ## 🚀 Application des Migrations
 
 ### Option 1: Via Dashboard Supabase (Recommandé)
@@ -88,6 +100,7 @@ Système de Command Palette pour admins:
    - `003_audit_surveillance_ai.sql`
    - `004_emergency_actions_multisig.sql`
    - `005_command_palette_history.sql`
+   - `006_system_metrics.sql`
 5. Exécuter chaque script via le bouton "Run"
 
 ### Option 2: Via Supabase CLI
@@ -122,6 +135,7 @@ psql "postgresql://postgres:[YOUR-PASSWORD]@db.xvnlbqlpsvudkcbclygg.supabase.co:
 \i supabase/migrations/003_audit_surveillance_ai.sql
 \i supabase/migrations/004_emergency_actions_multisig.sql
 \i supabase/migrations/005_command_palette_history.sql
+\i supabase/migrations/006_system_metrics.sql
 ```
 
 ---
@@ -148,7 +162,8 @@ WHERE table_schema = 'public'
     'system_lockdowns',
     'encryption_key_management',
     'admin_command_history',
-    'command_templates'
+    'command_templates',
+    'system_metrics'
   )
 ORDER BY table_name;
 
