@@ -126,7 +126,7 @@ db.serialize(() => {
 
   // Seed default org
   db.run(`INSERT OR IGNORE INTO organizations (id, name, slug) VALUES ('default-org', 'Omni Corp', 'omni-corp')`);
-  db.run(`INSERT OR IGNORE INTO organization_members (id, organization_id, user_id, role) VALUES ('default-mem', 'default-org', 'local-user', 'owner')`);
+  db.run(`INSERT OR IGNORE INTO organization_members (id, organization_id, user_id, role) VALUES ('default-mem', 'default-org', 'ffc13a83-6efb-4e96-a25e-2c4d55e8e91a', 'owner')`);
 });
 
 // Multer setup for file uploads

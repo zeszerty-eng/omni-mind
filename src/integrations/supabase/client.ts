@@ -115,14 +115,14 @@ export const supabase: any = {
     })
   },
   auth: {
-    getUser: async () => ({ data: { user: { id: 'local-user', email: 'local@omni.local' } }, error: null }),
-    getSession: async () => ({ data: { session: { user: { id: 'local-user' } } }, error: null }),
+    getUser: async () => ({ data: { user: { id: 'ffc13a83-6efb-4e96-a25e-2c4d55e8e91a', email: 'admin@omni.local' } }, error: null }),
+    getSession: async () => ({ data: { session: { user: { id: 'ffc13a83-6efb-4e96-a25e-2c4d55e8e91a' } } }, error: null }),
     onAuthStateChange: (cb: any) => {
-      setTimeout(() => cb('SIGNED_IN', { user: { id: 'local-user', email: 'local@omni.local' } }), 0);
+      setTimeout(() => cb('SIGNED_IN', { user: { id: 'ffc13a83-6efb-4e96-a25e-2c4d55e8e91a', email: 'admin@omni.local' } }), 0);
       return { data: { subscription: { unsubscribe: () => {} } } };
     },
-    signInWithPassword: async (creds: any) => ({ data: { user: { id: 'local-user' } }, error: null }),
-    signUp: async (creds: any) => ({ data: { user: { id: 'local-user' } }, error: null }),
+    signInWithPassword: async (creds: any) => ({ data: { user: { id: 'ffc13a83-6efb-4e96-a25e-2c4d55e8e91a' } }, error: null }),
+    signUp: async (creds: any) => ({ data: { user: { id: 'ffc13a83-6efb-4e96-a25e-2c4d55e8e91a' } }, error: null }),
     signOut: async () => ({ error: null })
   }
 };
