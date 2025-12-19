@@ -38,11 +38,7 @@ export const OmniBar = ({ isOpen, onClose, onSearch, files }: OmniBarProps) => {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [onClose]);
 
-  const filteredFiles = files.filter(
-    (file) =>
-      file.name.toLowerCase().includes(query.toLowerCase()) ||
-      file.summary?.toLowerCase().includes(query.toLowerCase())
-  );
+  const filteredFiles = files; // Trust the semantic search results from parent
 
   return (
     <AnimatePresence>
