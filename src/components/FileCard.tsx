@@ -1,5 +1,6 @@
 import { motion } from "framer-motion";
-import { FileText, Image, Music, Video, File, Sparkles, ExternalLink, Tag } from "lucide-react";
+import { FileText, Image, Music, Video, File, Sparkles, ExternalLink, Tag, Printer, Download } from "lucide-react";
+import { toast } from "@/hooks/use-toast";
 
 interface FileCardProps {
   file: {
@@ -11,6 +12,7 @@ interface FileCardProps {
     summary?: string;
     tags?: string[];
     extractedData?: Record<string, string>;
+    storageUrl?: string;
   };
   index: number;
 }
@@ -40,6 +42,41 @@ const getGradientByType = (type: string) => {
 export const FileCard = ({ file, index }: FileCardProps) => {
   const Icon = getFileIcon(file.type);
   const gradient = getGradientByType(file.type);
+  const fullUrl = file.storageUrl ? `http://localhost:3001${file.storageUrl}` : null;
+
+  const handlePrint = () => {
+    if (!fullUrl) {
+      toast({ title: "Erreur", description: "Fichier non trouvé localement" });
+      return;
+    }
+    const win = window.open(fullUrl, '_blank');
+    if (win) {
+      win.focus();
+      // Most browsers will show the native PDF viewer or image which has a print button
+      // For images, we can try to trigger it
+      if (file.type.startsWith('image/')) {
+        win.print();
+      }
+    }
+  };
+
+  const handleDownload = async () => {
+    if (!fullUrl) return;
+    try {
+      const response = await fetch(fullUrl);
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = file.originalName;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (error) {
+      console.error("Download failed:", error);
+    }
+  };
 
   return (
     <motion.div
@@ -91,9 +128,30 @@ export const FileCard = ({ file, index }: FileCardProps) => {
             </p>
           </div>
 
-          <button className="opacity-0 group-hover:opacity-100 transition-opacity p-2 rounded-lg hover:bg-secondary">
-            <ExternalLink className="w-4 h-4 text-muted-foreground" />
-          </button>
+          <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+            <button 
+              onClick={handlePrint}
+              className="p-2 rounded-lg hover:bg-secondary text-muted-foreground hover:text-foreground"
+              title="Imprimer"
+            >
+              <Printer className="w-4 h-4" />
+            </button>
+            <button 
+              onClick={handleDownload}
+              className="p-2 rounded-lg hover:bg-secondary text-muted-foreground hover:text-foreground"
+              title="Télécharger"
+            >
+              <Download className="w-4 h-4" />
+            </button>
+            <a 
+              href={fullUrl || '#'} 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="p-2 rounded-lg hover:bg-secondary text-muted-foreground hover:text-foreground"
+            >
+              <ExternalLink className="w-4 h-4" />
+            </a>
+          </div>
         </div>
 
         {/* AI Summary */}

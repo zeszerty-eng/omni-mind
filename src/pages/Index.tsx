@@ -50,6 +50,7 @@ const Index = () => {
     summary: node.summary || undefined,
     tags: node.tags || undefined,
     extractedData: node.metadata as Record<string, string> | undefined,
+    storageUrl: node.storage_url || undefined,
   }));
 
   return (
@@ -61,6 +62,18 @@ const Index = () => {
           onOpenOmniBar={() => setIsOmniBarOpen(true)} 
           fileCount={processedFiles.length}
         />
+
+        {/* Local Network & Scanner Status */}
+        <div className="flex flex-wrap gap-4 mt-4 px-2">
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-green-500/10 border border-green-500/20 text-green-500 text-xs font-medium">
+            <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+            Réseau Local Actif (100% Hors-ligne)
+          </div>
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-500 text-xs font-medium">
+            <Sparkles className="w-3 h-3" />
+            Dossier Scan Surveillé: ./scanned_documents
+          </div>
+        </div>
 
         <main className="py-8">
           {/* Hero Section when no files */}
