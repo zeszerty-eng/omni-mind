@@ -111,7 +111,7 @@ export const DropZone = ({ onFileDrop, isProcessing }: DropZoneProps) => {
           )}
         </AnimatePresence>
 
-        <div className="relative z-10 flex flex-col items-center justify-center py-16 px-8">
+        <div className="relative z-10 flex flex-col items-center justify-center py-12 px-8">
           <motion.div
             animate={{ 
               y: isDragging ? -5 : 0,
@@ -171,15 +171,28 @@ export const DropZone = ({ onFileDrop, isProcessing }: DropZoneProps) => {
                 ? "Analyse en cours..." 
                 : isDragging 
                   ? "Lâchez pour analyser" 
-                  : "Déposez vos fichiers ici"
+                  : "Déposez vos fichiers ou parcourez"
               }
             </h3>
-            <p className="text-muted-foreground max-w-sm">
+            <p className="text-muted-foreground max-w-sm mb-6">
               {isProcessing 
                 ? "L'IA locale analyse le contenu de vos fichiers"
                 : "PDF, images, documents... L'IA comprendra le sens de chaque fichier"
               }
             </p>
+
+            {!isProcessing && !isDragging && (
+              <label className="cursor-pointer inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-primary text-primary-foreground font-medium hover:scale-105 transition-transform">
+                <Upload className="w-4 h-4" />
+                <span>Parcourir les fichiers</span>
+                <input
+                  type="file"
+                  multiple
+                  onChange={handleFileInput}
+                  className="hidden"
+                />
+              </label>
+            )}
           </motion.div>
 
           {!isProcessing && (
@@ -190,7 +203,7 @@ export const DropZone = ({ onFileDrop, isProcessing }: DropZoneProps) => {
               transition={{ delay: 0.3 }}
             >
               <Sparkles className="w-4 h-4" />
-              <span>Traitement 100% local - Aucune donnée envoyée</span>
+              <span>Traitement 100% local - Archivage Sécurisé</span>
             </motion.div>
           )}
         </div>

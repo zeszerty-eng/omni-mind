@@ -9,10 +9,11 @@ import { SpatialCanvas } from "@/components/SpatialCanvas";
 import { useFileProcessor } from "@/hooks/useFileProcessor";
 import { useRelations } from "@/hooks/useRelations";
 import { Grid, List, Sparkles, Map } from "lucide-react";
+import { FileTable } from "@/components/FileTable";
 
 const Index = () => {
   const [isOmniBarOpen, setIsOmniBarOpen] = useState(false);
-  const [viewMode, setViewMode] = useState<"grid" | "list" | "canvas">("grid");
+  const [viewMode, setViewMode] = useState<"grid" | "list" | "table" | "canvas">("grid");
   const [searchQuery, setSearchQuery] = useState("");
   
   const { isProcessing, processedFiles, processFiles, searchFiles } = useFileProcessor();
@@ -52,6 +53,35 @@ const Index = () => {
     extractedData: node.metadata as Record<string, string> | undefined,
     storageUrl: node.storage_url || undefined,
   }));
+
+  const handlePrint = (file: any) => {
+    if (!file.storageUrl) return;
+    const url = `http://${window.location.hostname}:3001${file.storageUrl}`;
+    const win = window.open(url, '_blank');
+    if (win) {
+      win.focus();
+      if (file.type.startsWith('image/')) win.print();
+    }
+  };
+
+  const handleDownload = async (file: any) => {
+    if (!file.storageUrl) return;
+    const url = `http://${window.location.hostname}:3001${file.storageUrl}`;
+    try {
+      const response = await fetch(url);
+      const blob = await response.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = file.originalName;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(blobUrl);
+      document.body.removeChild(a);
+    } catch (error) {
+      console.error("Download failed:", error);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-background relative">
@@ -147,6 +177,7 @@ const Index = () => {
                           ? "bg-primary text-primary-foreground" 
                           : "bg-secondary text-muted-foreground hover:text-foreground"
                       }`}
+                      title="Grille"
                     >
                       <Grid className="w-5 h-5" />
                     </button>
@@ -157,8 +188,20 @@ const Index = () => {
                           ? "bg-primary text-primary-foreground" 
                           : "bg-secondary text-muted-foreground hover:text-foreground"
                       }`}
+                      title="Liste"
                     >
                       <List className="w-5 h-5" />
+                    </button>
+                    <button
+                      onClick={() => setViewMode("table")}
+                      className={`p-2 rounded-lg transition-colors ${
+                        viewMode === "table" 
+                          ? "bg-primary text-primary-foreground" 
+                          : "bg-secondary text-muted-foreground hover:text-foreground"
+                      }`}
+                      title="Tableau Professionnel"
+                    >
+                      <Sparkles className="w-5 h-5" />
                     </button>
                     <button
                       onClick={() => setViewMode("canvas")}
@@ -167,26 +210,15 @@ const Index = () => {
                           ? "bg-primary text-primary-foreground" 
                           : "bg-secondary text-muted-foreground hover:text-foreground"
                       }`}
+                      title="Espace Spatial"
                     >
                       <Map className="w-5 h-5" />
                     </button>
                   </div>
                 </div>
 
-                {/* Files Grid/List */}
-                {viewMode !== "canvas" ? (
-                  <div className={`
-                    grid gap-6
-                    ${viewMode === "grid" 
-                      ? "grid-cols-1 md:grid-cols-2 lg:grid-cols-3" 
-                      : "grid-cols-1"
-                    }
-                  `}>
-                    {filesToDisplay.map((file, index) => (
-                      <FileCard key={file.id} file={file} index={index} />
-                    ))}
-                  </div>
-                ) : (
+                {/* Files Views */}
+                {viewMode === "canvas" ? (
                   <SpatialCanvas
                     nodes={filesToDisplay.map(f => ({
                       id: f.id,
@@ -203,6 +235,24 @@ const Index = () => {
                       strength: r.strength,
                     }))}
                   />
+                ) : viewMode === "table" ? (
+                  <FileTable 
+                    files={filesToDisplay} 
+                    onPrint={handlePrint} 
+                    onDownload={handleDownload} 
+                  />
+                ) : (
+                  <div className={`
+                    grid gap-6
+                    ${viewMode === "grid" 
+                      ? "grid-cols-1 md:grid-cols-2 lg:grid-cols-3" 
+                      : "grid-cols-1"
+                    }
+                  `}>
+                    {filesToDisplay.map((file, index) => (
+                      <FileCard key={file.id} file={file} index={index} />
+                    ))}
+                  </div>
                 )}
               </motion.div>
             )}
