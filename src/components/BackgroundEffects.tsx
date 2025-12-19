@@ -1,10 +1,6 @@
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 
-interface BackgroundEffectsProps {
-  isDragging?: boolean;
-}
-
-export const BackgroundEffects = ({ isDragging }: BackgroundEffectsProps) => {
+export const BackgroundEffects = () => {
   return (
     <div className="fixed inset-0 pointer-events-none overflow-hidden">
       {/* Main gradient orb */}
@@ -20,9 +16,7 @@ export const BackgroundEffects = ({ isDragging }: BackgroundEffectsProps) => {
         }}
         className="absolute -top-1/4 -left-1/4 w-1/2 h-1/2 rounded-full"
         style={{
-          background: isDragging 
-            ? "radial-gradient(circle, hsl(var(--primary) / 0.3) 0%, transparent 70%)"
-            : "radial-gradient(circle, hsl(var(--omni-glow) / 0.15) 0%, transparent 70%)",
+          background: "radial-gradient(circle, hsl(var(--omni-glow) / 0.15) 0%, transparent 70%)",
         }}
       />
 
@@ -40,9 +34,7 @@ export const BackgroundEffects = ({ isDragging }: BackgroundEffectsProps) => {
         }}
         className="absolute -bottom-1/4 -right-1/4 w-1/2 h-1/2 rounded-full"
         style={{
-          background: isDragging
-            ? "radial-gradient(circle, hsl(var(--primary) / 0.2) 0%, transparent 70%)"
-            : "radial-gradient(circle, hsl(var(--omni-glow-secondary) / 0.1) 0%, transparent 70%)",
+          background: "radial-gradient(circle, hsl(var(--omni-glow-secondary) / 0.1) 0%, transparent 70%)",
         }}
       />
 

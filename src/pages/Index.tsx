@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Header } from "@/components/Header";
 import { OmniBar } from "@/components/OmniBar";
@@ -6,64 +6,20 @@ import { DropZone } from "@/components/DropZone";
 import { FileCard } from "@/components/FileCard";
 import { BackgroundEffects } from "@/components/BackgroundEffects";
 import { SpatialCanvas } from "@/components/SpatialCanvas";
-import { useLocalNodes } from "@/hooks/useLocalNodes";
+import { useFileProcessor } from "@/hooks/useFileProcessor";
 import { useRelations } from "@/hooks/useRelations";
-import { aiPipeline } from "@/services/local-ai/pipeline.service";
-import { Grid, List, Sparkles, Map, WifiOff } from "lucide-react";
+import { Grid, List, Sparkles, Map } from "lucide-react";
 
 const Index = () => {
   const [isOmniBarOpen, setIsOmniBarOpen] = useState(false);
   const [viewMode, setViewMode] = useState<"grid" | "list" | "canvas">("grid");
   const [searchQuery, setSearchQuery] = useState("");
-  const [isOffline, setIsOffline] = useState(!navigator.onLine);
-  const [isDraggingGlobal, setIsDraggingGlobal] = useState(false);
   
-  const { nodes, isProcessing, processFiles, searchNodes } = useLocalNodes();
-  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const { isProcessing, processedFiles, processFiles, searchFiles } = useFileProcessor();
+  const { relations, detectSimilarities } = useRelations();
 
-  // Monitor offline status
-  useEffect(() => {
-    const handleOnline = () => setIsOffline(false);
-    const handleOffline = () => setIsOffline(true);
-    window.addEventListener('online', handleOnline);
-    window.addEventListener('offline', handleOffline);
-    return () => {
-      window.removeEventListener('online', handleOnline);
-      window.removeEventListener('offline', handleOffline);
-    };
-  }, []);
-
-  // Global drag handling for "Gravity" effect
-  useEffect(() => {
-    const handleDragOver = (e: DragEvent) => {
-      e.preventDefault();
-      setIsDraggingGlobal(true);
-    };
-    const handleDragLeave = (e: DragEvent) => {
-      e.preventDefault();
-      // Simple debounce to avoid flickering when entering/leaving child elements
-      if (e.relatedTarget === null) {
-        setIsDraggingGlobal(false);
-      }
-    };
-    const handleDrop = (e: DragEvent) => {
-      e.preventDefault();
-      setIsDraggingGlobal(false);
-    };
-
-    window.addEventListener('dragover', handleDragOver);
-    window.addEventListener('dragleave', handleDragLeave);
-    window.addEventListener('drop', handleDrop);
-    
-    return () => {
-      window.removeEventListener('dragover', handleDragOver);
-      window.removeEventListener('dragleave', handleDragLeave);
-      window.removeEventListener('drop', handleDrop);
-    };
-  }, []);
-
-  // Detect similarities between nodes using AI Embeddings
-  const detectedRelations = aiPipeline.calculateSimilarities(nodes);
+  // Detect similarities between nodes
+  const detectedRelations = detectSimilarities(processedFiles.map(n => ({ id: n.id, tags: n.tags || [] })));
 
   // Keyboard shortcut for OmniBar
   useEffect(() => {
@@ -78,58 +34,38 @@ const Index = () => {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
-  // Semantic search handling
-  const handleSearch = useCallback(async (query: string) => {
-    setSearchQuery(query);
-    const results = await searchNodes(query);
-    setSearchResults(results);
-  }, [searchNodes]);
-
   const handleFileDrop = async (files: File[]) => {
     await processFiles(files);
   };
 
-  const displayedFiles = searchQuery ? searchResults : nodes;
+  const displayedFiles = searchQuery ? searchFiles(searchQuery) : processedFiles;
 
-  // Convert LocalDocument to FileCard format
-  const filesToDisplay = displayedFiles.map(doc => ({
-    id: doc.id?.toString() || Math.random().toString(),
-    name: doc.name,
-    originalName: doc.name,
-    type: doc.type,
-    size: doc.size,
-    summary: doc.content.substring(0, 150) + "...",
-    tags: doc.tags,
-    extractedData: doc.metadata as Record<string, string>,
-    score: (doc as any).score // Semantic match score
+  // Convert NodeData to FileCard format
+  const filesToDisplay = displayedFiles.map(node => ({
+    id: node.id,
+    name: node.smart_name || node.original_name,
+    originalName: node.original_name,
+    type: node.mime_type || 'application/octet-stream',
+    size: node.file_size || 0,
+    summary: node.summary || undefined,
+    tags: node.tags || undefined,
+    extractedData: node.metadata as Record<string, string> | undefined,
   }));
 
   return (
     <div className="min-h-screen bg-background relative">
-      <BackgroundEffects isDragging={isDraggingGlobal} />
+      <BackgroundEffects />
       
       <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <Header 
           onOpenOmniBar={() => setIsOmniBarOpen(true)} 
-          fileCount={nodes.length}
+          fileCount={processedFiles.length}
         />
 
         <main className="py-8">
-          {/* Offline Indicator */}
-          {isOffline && (
-            <motion.div
-              initial={{ opacity: 0, y: -20 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="flex items-center justify-center gap-2 mb-6 text-orange-400 bg-orange-400/10 py-2 rounded-lg border border-orange-400/20"
-            >
-              <WifiOff className="w-4 h-4" />
-              <span className="text-sm font-medium">Mode Hors-ligne • Intelligence locale active</span>
-            </motion.div>
-          )}
-
           {/* Hero Section when no files */}
           <AnimatePresence>
-            {nodes.length === 0 && (
+            {processedFiles.length === 0 && (
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -143,7 +79,7 @@ const Index = () => {
                   className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 border border-primary/20 mb-6"
                 >
                   <Sparkles className="w-4 h-4 text-primary" />
-                  <span className="text-sm text-primary font-medium">Zéro Serveur • WebGPU • Confidentialité Totale</span>
+                  <span className="text-sm text-primary font-medium">IA Intelligente • Stockage Sécurisé</span>
                 </motion.div>
                 
                 <motion.h2 
@@ -152,7 +88,7 @@ const Index = () => {
                   transition={{ delay: 0.2 }}
                   className="text-4xl md:text-5xl font-bold text-foreground mb-4"
                 >
-                  L'IA qui reste <span className="text-gradient">chez vous</span>
+                  L'archivage qui <span className="text-gradient">comprend</span>
                 </motion.h2>
                 
                 <motion.p 
@@ -161,8 +97,8 @@ const Index = () => {
                   transition={{ delay: 0.3 }}
                   className="text-lg text-muted-foreground max-w-2xl mx-auto"
                 >
-                  Prototype OMNI : vos documents sont analysés localement via WASM. 
-                  Coupez votre connexion, tout continue de fonctionner.
+                  Déposez n'importe quel fichier. OMNI l'analyse, le renomme intelligemment, 
+                  et le rend trouvable par le sens, pas juste par les mots.
                 </motion.p>
               </motion.div>
             )}
@@ -175,7 +111,7 @@ const Index = () => {
 
           {/* Files Section */}
           <AnimatePresence>
-            {nodes.length > 0 && (
+            {processedFiles.length > 0 && (
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -184,11 +120,9 @@ const Index = () => {
                 {/* Section Header */}
                 <div className="flex items-center justify-between mb-6">
                   <div>
-                    <h3 className="text-xl font-semibold text-foreground">
-                      {searchQuery ? "Résultats sémantiques" : "Documents indexés"}
-                    </h3>
+                    <h3 className="text-xl font-semibold text-foreground">Fichiers analysés</h3>
                     <p className="text-sm text-muted-foreground">
-                      {nodes.length} document{nodes.length > 1 ? "s" : ""} stocké{nodes.length > 1 ? "s" : ""} localement
+                      {processedFiles.length} fichier{processedFiles.length > 1 ? "s" : ""} traité{processedFiles.length > 1 ? "s" : ""} par l'IA
                     </p>
                   </div>
                   
@@ -262,7 +196,7 @@ const Index = () => {
           </AnimatePresence>
 
           {/* Features Preview */}
-          {nodes.length === 0 && (
+          {processedFiles.length === 0 && (
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -271,19 +205,19 @@ const Index = () => {
             >
               {[
                 {
-                  title: "Analyse WASM",
-                  description: "L'IA tourne directement dans votre navigateur. Aucune donnée ne quitte votre PC.",
-                  icon: "🔒",
+                  title: "Renommage Intelligent",
+                  description: "L'IA analyse le contenu et génère des noms descriptifs automatiquement.",
+                  icon: "✨",
                 },
                 {
-                  title: "Recherche par le Sens",
-                  description: "Les documents sont transformés en vecteurs (embeddings) pour une recherche sémantique.",
-                  icon: "🧠",
+                  title: "Recherche Sémantique",
+                  description: "Trouvez « déjeuner Paris » même si le fichier s'appelle IMG_4532.jpg.",
+                  icon: "🔍",
                 },
                 {
-                  title: "Persistence IndexedDB",
-                  description: "Vos fichiers sont sauvegardés localement. Retrouvez-les même après un rafraîchissement.",
-                  icon: "💾",
+                  title: "Actions Intelligentes",
+                  description: "Extraction de données, classification automatique, et bien plus.",
+                  icon: "⚡",
                 },
               ].map((feature, index) => (
                 <motion.div
@@ -306,7 +240,7 @@ const Index = () => {
         <footer className="py-8 border-t border-border/50 mt-12">
           <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
             <Sparkles className="w-4 h-4 text-primary" />
-            <span>OMNI • Prototype IA Locale</span>
+            <span>OMNI • Archivage Intelligent</span>
           </div>
         </footer>
       </div>
@@ -315,7 +249,7 @@ const Index = () => {
       <OmniBar
         isOpen={isOmniBarOpen}
         onClose={() => setIsOmniBarOpen(false)}
-        onSearch={handleSearch}
+        onSearch={setSearchQuery}
         files={filesToDisplay.map((f) => ({
           id: f.id,
           name: f.name,
@@ -328,4 +262,3 @@ const Index = () => {
 };
 
 export default Index;
-
