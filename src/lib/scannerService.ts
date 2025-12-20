@@ -118,7 +118,7 @@ class ScannerService {
 
   private handleMessage(message: { type: string; payload?: unknown }): void {
     switch (message.type) {
-      case 'devices':
+      case 'devices': {
         const devices = message.payload as ScannerDevice[];
         this.devices.clear();
         devices.forEach(d => {
@@ -126,6 +126,7 @@ class ScannerService {
           this.emit({ type: 'device_found', data: d });
         });
         break;
+      }
 
       case 'scan_complete':
         this.emit({ type: 'scan_complete', data: message.payload });

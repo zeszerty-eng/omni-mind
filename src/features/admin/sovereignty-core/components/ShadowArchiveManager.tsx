@@ -40,10 +40,11 @@ export const ShadowArchiveManager = ({ organizationId }: ShadowArchiveManagerPro
       // though typically restored items might remain in archive but marked restored?
       // Assuming they stay available for audit.
       fetchShadowArchives();
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const error = err as Error; // Basic safe cast for now or use unknown
       toast({
         title: "Erreur Critique",
-        description: err.message,
+        description: error.message,
         variant: "destructive",
       });
     } finally {

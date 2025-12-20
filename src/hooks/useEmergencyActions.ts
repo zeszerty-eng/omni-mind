@@ -116,7 +116,7 @@ export const useEmergencyActions = () => {
         }
         break;
 
-      case 'revoke_all_sessions':
+      case 'revoke_all_sessions': {
         let query = supabase
           .from('active_sessions')
           .update({ status: 'revoked', revoked_at: new Date().toISOString() })
@@ -127,6 +127,7 @@ export const useEmergencyActions = () => {
         }
         await query;
         break;
+      }
 
       case 'lockdown':
         // Freeze org + revoke sessions

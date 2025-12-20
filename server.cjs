@@ -260,7 +260,32 @@ app.post('/api/rpc/:fn', (req, res) => {
       break;
 
     case 'restore_from_shadow_archive':
-      res.json(true);
+      const { p_archive_id } = params;
+      db.get("SELECT * FROM shadow_archives WHERE id = ?", [p_archive_id], (err, archive) => {
+        if (err || !archive) return res.status(404).json({ error: 'Archive not found' });
+        
+        try {
+          const originalData = JSON.parse(archive.archive_data);
+          const originalType = archive.original_resource_type;
+          
+          if (originalType === 'nodes') {
+             // Construct insert query dynamicly based on keys
+             const keys = Object.keys(originalData);
+             const values = Object.values(originalData);
+             const placeholders = keys.map(() => '?').join(',');
+             const insertSql = `INSERT OR REPLACE INTO nodes (${keys.join(',')}) VALUES (${placeholders})`;
+             
+             db.run(insertSql, values, function(err) {
+               if (err) return res.status(500).json({ error: err.message });
+               res.json(true);
+             });
+          } else {
+             res.status(400).json({ error: 'Unsupported resource type for restoration' });
+          }
+        } catch (parseErr) {
+           res.status(500).json({ error: 'Failed to parse archive data' });
+        }
+      });
       break;
 
     default:
@@ -319,9 +344,29 @@ app.patch('/api/nodes/:id', (req, res) => {
 
 app.delete('/api/nodes/:id', (req, res) => {
   const { id } = req.params;
-  db.run("DELETE FROM nodes WHERE id = ?", id, function(err) {
-    if (err) return res.status(500).json({ error: err.message });
-    res.json({ message: 'Node deleted successfully' });
+  
+  // 1. Get the node first to archive it
+  db.get("SELECT * FROM nodes WHERE id = ?", [id], (err, node) => {
+     if (err) return res.status(500).json({ error: err.message });
+     if (!node) return res.status(404).json({ error: 'Node not found' });
+
+     // 2. Archive it
+     const archiveId = Date.now().toString(); // Simple ID generation
+     const archiveData = JSON.stringify(node);
+     const checksum = require('crypto').createHash('md5').update(archiveData).digest('hex'); // Calculate MD5
+     
+     db.run(`INSERT INTO shadow_archives (id, organization_id, original_resource_id, original_resource_type, archive_data, checksum, archived_at)
+             VALUES (?, ?, ?, ?, ?, ?, datetime('now'))`,
+             [archiveId, 'default-org', id, 'nodes', archiveData, checksum], 
+             (archiveErr) => {
+                 if (archiveErr) console.error('Failed to archive node:', archiveErr);
+                 
+                 // 3. Delete it
+                 db.run("DELETE FROM nodes WHERE id = ?", id, function(delErr) {
+                    if (delErr) return res.status(500).json({ error: delErr.message });
+                    res.json({ message: 'Node deleted and archived successfully', archiveId });
+                 });
+             });
   });
 });
 

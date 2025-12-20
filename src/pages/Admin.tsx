@@ -19,7 +19,7 @@ import { AccessPolicyManager } from '@/features/admin/sovereignty-core/component
 import { DLPManager } from '@/features/admin/sovereignty-core/components/DLPManager';
 import { KeyManagement } from '@/features/admin/sovereignty-core/components/KeyManagement';
 import { ShadowArchiveManager } from '@/features/admin/sovereignty-core/components/ShadowArchiveManager';
-import { useAdmin } from '@/hooks/useAdmin';
+import { useAdmin, useOrganizations } from "@/hooks/useAdmin";
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -43,8 +43,17 @@ const Admin = () => {
   const { user, signOut } = useAuth();
   const { isAdmin, isSuperAdmin, loading: adminLoading } = useAdmin();
   
+  const { currentOrg, organizations, fetchOrganizations, loading: orgLoading } = useOrganizations();
+  
+  useEffect(() => {
+    fetchOrganizations();
+  }, [fetchOrganizations]);
+
+  // Use the ID from the current organization or fall back to a safe default if loading
+  // In a real scenario, we might block rendering until org is loaded or show a selector
+  const organizationId = currentOrg?.id || 'default-org';
+
   // Centralized Sovereignty State
-  const organizationId = 'default-org'; // Hardcoded for local alignment
   const sovereignty = useSovereignty(organizationId);
 
   const [activeTab, setActiveTab] = useState<AdminTab>('pulse');
@@ -175,8 +184,15 @@ const Admin = () => {
 
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col h-screen overflow-hidden relative z-20">
-        {/* Top Bar Header */}
-        <header className="h-20 border-b border-border bg-background/50 backdrop-blur-xl px-8 flex items-center justify-between sticky top-0 z-40">
+        
+        {/* Simple Org Warning if not loaded */}
+        {!currentOrg && !orgLoading && (
+           <div className="bg-orange-500/10 text-orange-500 px-4 py-2 text-xs text-center border-b border-orange-500/20">
+              Mode Déconnecté / Aucune Organisation. ID par défaut: {organizationId}
+           </div>
+        )}
+
+        <header className="h-16 border-b border-border/40 bg-background/50 backdrop-blur-md flex items-center justify-between px-8 shrink-0">
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2 text-xs text-muted-foreground font-medium uppercase tracking-wider">
               <span>OMNI CORE</span>

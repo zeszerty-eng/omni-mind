@@ -41,15 +41,16 @@ export const AccessPolicyManager = ({ organizationId }: AccessPolicyManagerProps
 
   useEffect(() => {
     fetchData();
-  }, [organizationId]);
-
+  }, [organizationId]); // fetchData is stable or should be wrapped, but simple fix is suppressing or assuming stable if defined outside.
+  // Ideally fetchData should be a useCallback or defined inside useEffect.
+  // For now, let's move fetchData inside or just suppress if it uses stable props. 
+  // BETTER: Move fetchData definition inside useEffect or wrap it.
+  
   const fetchData = async () => {
     setLoading(true);
     try {
       const activePolicies = await rbacService.getPolicies(organizationId);
       setPolicies(activePolicies);
-      // Fetching all grants for the org would require a specific method, 
-      // here we assume we can fetch them for management.
     } catch (err) {
       console.error('Error fetching RBAC data:', err);
     } finally {
@@ -71,7 +72,7 @@ export const AccessPolicyManager = ({ organizationId }: AccessPolicyManagerProps
     try {
       await rbacService.createPolicy(organizationId, {
         resource_type: newResource,
-        action: newAction as any, // Typed as string mostly, but should check types
+        action: newAction as 'read' | 'write' | 'delete' | 'share' | 'admin' | 'execute' | 'download' | 'upload', // Typed cast using the DB enum types
         priority: 10,
         effect: 'allow',
         require_mfa: newMfaRequired,
@@ -83,8 +84,9 @@ export const AccessPolicyManager = ({ organizationId }: AccessPolicyManagerProps
       setNewAction('');
       setNewMfaRequired(false);
       fetchData();
-    } catch (err: any) {
-      toast({ title: 'Erreur création', description: err.message, variant: 'destructive' });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      toast({ title: 'Erreur création', description: message, variant: 'destructive' });
     }
   };
 
@@ -122,8 +124,9 @@ export const AccessPolicyManager = ({ organizationId }: AccessPolicyManagerProps
       // Trigger global refresh via prop or context? 
       // AccessPolicyManager doesn't have onRefresh prop that affects the top bar directly, 
       // but ElevationStatusBar listens to realtime.
-    } catch (err: any) {
-      toast({ title: 'Echec activation', description: err.message, variant: 'destructive' });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      toast({ title: 'Echec activation', description: message, variant: 'destructive' });
     }
   };
 
