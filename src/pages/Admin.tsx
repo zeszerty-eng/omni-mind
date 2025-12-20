@@ -6,7 +6,7 @@ import {
   AlertTriangle, Activity, Sparkles, Brain, FileSearch,
   Lock, Key, LogOut, RefreshCw, Bell, Search, 
   ChevronRight, ArrowLeft, MoreHorizontal, User as UserIcon,
-  ShieldAlert
+  ShieldAlert, Archive
 } from 'lucide-react';
 import { BackgroundEffects } from '@/components/BackgroundEffects';
 import { PulseDashboard } from '@/components/admin/PulseDashboard';
@@ -18,6 +18,7 @@ import { BehavioralIntelligence } from '@/features/admin/sovereignty-core/compon
 import { AccessPolicyManager } from '@/features/admin/sovereignty-core/components/AccessPolicyManager';
 import { DLPManager } from '@/features/admin/sovereignty-core/components/DLPManager';
 import { KeyManagement } from '@/features/admin/sovereignty-core/components/KeyManagement';
+import { ShadowArchiveManager } from '@/features/admin/sovereignty-core/components/ShadowArchiveManager';
 import { useAdmin } from '@/hooks/useAdmin';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -35,7 +36,7 @@ import {
 import { ElevationStatusBar } from '@/features/admin/sovereignty-core/components/ElevationStatusBar';
 import { useSovereignty } from '@/features/admin/sovereignty-core/hooks/useSovereignty';
 
-type AdminTab = 'pulse' | 'users' | 'logs' | 'ia' | 'console' | 'rbac' | 'security' | 'settings' | 'dlp' | 'keys';
+type AdminTab = 'pulse' | 'users' | 'logs' | 'ia' | 'console' | 'rbac' | 'security' | 'settings' | 'dlp' | 'keys' | 'archive';
 
 const Admin = () => {
   const navigate = useNavigate();
@@ -100,6 +101,7 @@ const Admin = () => {
       title: 'Protection',
       tabs: [
         { id: 'security' as AdminTab, label: 'Urgence', icon: AlertTriangle },
+        { id: 'archive' as AdminTab, label: 'Archives WORM', icon: Archive },
         { id: 'dlp' as AdminTab, label: 'DLP (Fuites)', icon: ShieldAlert },
         { id: 'keys' as AdminTab, label: 'Clés KMS', icon: Key },
         { id: 'settings' as AdminTab, label: 'Système', icon: Settings },
@@ -297,6 +299,7 @@ const Admin = () => {
                 {activeTab === 'rbac' && <AccessPolicyManager organizationId={organizationId} />}
                 {activeTab === 'security' && <KillSwitchPanel organizationId={organizationId} />}
                 {activeTab === 'dlp' && <DLPManager organizationId={organizationId} />}
+                {activeTab === 'archive' && <ShadowArchiveManager organizationId={organizationId} />}
                 {activeTab === 'keys' && <KeyManagement organizationId={organizationId} />}
                 {activeTab === 'settings' && (
                   <div className="flex flex-col items-center justify-center p-20 glass rounded-3xl border-dashed border-2 border-border/60">

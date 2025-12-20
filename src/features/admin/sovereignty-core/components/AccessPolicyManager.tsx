@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   ShieldCheck, Clock, Ghost, ShieldAlert, Plus, 
-  Trash2, Settings2, Info, Lock, EyeOff
+  Trash2, Settings2, Info, Lock, EyeOff, AlertTriangle
 } from 'lucide-react';
 import { rbacService } from '../services/rbac.service';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
@@ -28,6 +28,16 @@ export const AccessPolicyManager = ({ organizationId }: AccessPolicyManagerProps
   const [grants, setGrants] = useState<TemporalAccessGrant[]>([]);
   const [loading, setLoading] = useState(false);
   const [isAddPolicyOpen, setIsAddPolicyOpen] = useState(false);
+  
+  // Policy Form State
+  const [newResource, setNewResource] = useState('');
+  const [newAction, setNewAction] = useState('');
+  const [newMfaRequired, setNewMfaRequired] = useState(false);
+
+  // Ghost Mode State
+  const [isGhostOpen, setIsGhostOpen] = useState(false);
+  const [ghostDuration, setGhostDuration] = useState('60'); // minutes
+  const [ghostReason, setGhostReason] = useState('');
 
   useEffect(() => {
     fetchData();
@@ -54,6 +64,66 @@ export const AccessPolicyManager = ({ organizationId }: AccessPolicyManagerProps
       fetchData();
     } catch (err) {
       toast({ title: 'Erreur', variant: 'destructive' });
+    }
+  };
+
+  const handleCreatePolicy = async () => {
+    try {
+      await rbacService.createPolicy(organizationId, {
+        resource_type: newResource,
+        action: newAction as any, // Typed as string mostly, but should check types
+        priority: 10,
+        effect: 'allow',
+        require_mfa: newMfaRequired,
+        conditions: {}
+      });
+      toast({ title: 'Politique créée avec succès' });
+      setIsAddPolicyOpen(false);
+      setNewResource('');
+      setNewAction('');
+      setNewMfaRequired(false);
+      fetchData();
+    } catch (err: any) {
+      toast({ title: 'Erreur création', description: err.message, variant: 'destructive' });
+    }
+  };
+
+  const handleCreateGhostGrant = async () => {
+    try {
+      const minutes = parseInt(ghostDuration);
+      const expiresAt = new Date();
+      expiresAt.setMinutes(expiresAt.getMinutes() + minutes);
+
+      // Assume current user for self-elevation in this context, 
+      // or we might need a user selector if granting to others. 
+      // Given the UI context, "Créer un accès Ghost" likely implies self-elevation for admin tasks.
+      // But rbacService.createTemporalGrant takes user_id.
+      // Let's assume we are elevating OURSELVES or creating a generic grant token?
+      // Usually Ghost Mode is self-elevation.
+      // We need the current user ID. Let's get it from supabase auth inside the component or pass it.
+      // better: rbacService.createTemporalGrant requires user_id.
+      // We can fetch current user.
+      
+      // For now, let's just use a placeholder or handle it in service if possible?
+      // No, service uses getUser() for 'granted_by'.
+      const { data: { user } } = await import('@/integrations/supabase/client').then(m => m.supabase.auth.getUser());
+      
+      if (!user) throw new Error("Utilisateur non authentifié");
+
+      await rbacService.createTemporalGrant(organizationId, {
+        user_id: user.id,
+        reason: ghostReason || 'Urgence Opérationnelle',
+        expires_at: expiresAt.toISOString(),
+        access_level: 'admin_audit' // Example level
+      });
+
+      toast({ title: 'MODE GHOST ACTIVÉ', description: `Élévation active pour ${minutes} minutes.` });
+      setIsGhostOpen(false);
+      // Trigger global refresh via prop or context? 
+      // AccessPolicyManager doesn't have onRefresh prop that affects the top bar directly, 
+      // but ElevationStatusBar listens to realtime.
+    } catch (err: any) {
+      toast({ title: 'Echec activation', description: err.message, variant: 'destructive' });
     }
   };
 
@@ -147,7 +217,10 @@ export const AccessPolicyManager = ({ organizationId }: AccessPolicyManagerProps
                    </p>
                 </div>
                 
-                <Button className="w-full gap-2 variant-primary shadow-lg shadow-primary/20">
+                <Button 
+                  className="w-full gap-2 variant-primary shadow-lg shadow-primary/20"
+                  onClick={() => setIsGhostOpen(true)}
+                >
                   <Clock className="w-4 h-4" />
                   Créer un accès Ghost
                 </Button>
@@ -184,20 +257,91 @@ export const AccessPolicyManager = ({ organizationId }: AccessPolicyManagerProps
           <div className="space-y-4 py-4">
              <div className="space-y-2">
                 <Label>Type de Ressource</Label>
-                <Input placeholder="ex: files, profiles, analytics" className="bg-secondary/50" />
+                <Input 
+                  placeholder="ex: files, profiles, analytics" 
+                  className="bg-secondary/50" 
+                  value={newResource}
+                  onChange={(e) => setNewResource(e.target.value)}
+                />
              </div>
              <div className="space-y-2">
                 <Label>Action</Label>
-                <Input placeholder="ex: delete, download_raw" className="bg-secondary/50" />
+                <Input 
+                  placeholder="ex: delete, download_raw" 
+                  className="bg-secondary/50" 
+                  value={newAction}
+                  onChange={(e) => setNewAction(e.target.value)}
+                />
              </div>
              <div className="flex items-center gap-2 p-3 rounded-lg bg-blue-500/5 border border-blue-500/10">
-                <input type="checkbox" id="mfa" className="accent-primary" />
+                <input 
+                  type="checkbox" 
+                  id="mfa" 
+                  className="accent-primary" 
+                  checked={newMfaRequired}
+                  onChange={(e) => setNewMfaRequired(e.target.checked)}
+                />
                 <Label htmlFor="mfa" className="text-sm font-medium">Exiger une validation MFA pour cette action</Label>
              </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsAddPolicyOpen(false)}>Annuler</Button>
-            <Button className="bg-gradient-omni">Enregistrer la règle</Button>
+            <Button className="bg-gradient-omni" onClick={handleCreatePolicy}>Enregistrer la règle</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Ghost Mode Dialog */}
+      <Dialog open={isGhostOpen} onOpenChange={setIsGhostOpen}>
+        <DialogContent className="glass-elevated border-primary/20 bg-black/90 max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-primary">
+              <Ghost className="w-5 h-5 animate-pulse" />
+              Activation Ghost Mode
+            </DialogTitle>
+            <DialogDescription>
+              Vous êtes sur le point d'élever vos privilèges pour une durée limitée. Cette action est auditée de manière indélébile.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+             <div className="space-y-2">
+                <Label>Justification (Audit Log)</Label>
+                <Input 
+                  placeholder="ex: Incident Response #1234" 
+                  className="bg-secondary/50 font-mono text-sm" 
+                  value={ghostReason}
+                  onChange={(e) => setGhostReason(e.target.value)}
+                />
+             </div>
+             <div className="space-y-2">
+                <Label>Durée (Minutes)</Label>
+                <div className="grid grid-cols-4 gap-2">
+                  {['15', '30', '60', '120'].map((m) => (
+                    <Button 
+                      key={m} 
+                      variant={ghostDuration === m ? 'default' : 'outline'} 
+                      size="sm"
+                      onClick={() => setGhostDuration(m)}
+                    >
+                      {m} min
+                    </Button>
+                  ))}
+                </div>
+             </div>
+             
+             <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg flex gap-3 items-start">
+               <AlertTriangle className="w-5 h-5 text-red-500 shrink-0" />
+               <p className="text-[11px] text-red-200">
+                 Toute action effectuée sous ce mode sera marquée avec le flag <span className="font-mono font-bold">ELEVATED_PRIVILEGE</span> et ne pourra pas être effacée de l'audit log.
+               </p>
+             </div>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setIsGhostOpen(false)}>Annuler</Button>
+            <Button variant="destructive" className="gap-2" onClick={handleCreateGhostGrant}>
+              <Ghost className="w-4 h-4" />
+              Activer l'Élévation
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

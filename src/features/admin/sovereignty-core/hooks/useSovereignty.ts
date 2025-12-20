@@ -13,7 +13,8 @@ import type {
   LockdownStatus,
   CommandHistory,
   CommandSuggestionsResponse,
-  TemporalAccessGrant
+  TemporalAccessGrant,
+  ShadowArchive
 } from '../types';
 
 export const useSovereignty = (organizationId?: string) => {
@@ -99,6 +100,19 @@ export const useSovereignty = (organizationId?: string) => {
   const getCommandSuggestions = useCallback(async (partial: string) => {
     if (!organizationId) return { suggestions: [], count: 0 };
     return await commandService.getSuggestions(organizationId, partial);
+  }, [organizationId]);
+
+  // --- Shadow Archives ---
+  const [archives, setArchives] = useState<ShadowArchive[]>([]);
+
+  const fetchShadowArchives = useCallback(async () => {
+    if (!organizationId) return;
+    try {
+      const data = await auditService.getShadowArchives(organizationId);
+      setArchives(data);
+    } catch (err: any) {
+      setError(err);
+    }
   }, [organizationId]);
 
   // --- RBAC & Ghost Mode ---
@@ -208,6 +222,8 @@ export const useSovereignty = (organizationId?: string) => {
     fetchCommandHistory,
     executeCommand,
     getCommandSuggestions,
-    refreshActiveGrants
+    refreshActiveGrants,
+    archives,
+    fetchShadowArchives
   };
 };
